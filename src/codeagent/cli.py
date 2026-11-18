@@ -11,10 +11,18 @@ from codeagent import __version__
 
 
 def _git_describe() -> str:
-    """Return `git describe --always --dirty` or 'unknown'."""
+    """Return `git describe --tags --always --dirty` or 'unknown'."""
     try:
         result = subprocess.run(
-            ["git", "describe", "--always", "--dirty", "--tags"],
+            ["git", "describe", "--tags", "--always", "--dirty", "--long"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+        result = subprocess.run(
+            ["git", "describe", "--tags", "--always", "--dirty"],
             capture_output=True,
             text=True,
             timeout=5,
@@ -25,20 +33,39 @@ def _git_describe() -> str:
 
 
 def _is_dirty() -> bool:
-    """Return True if the git working tree has uncommitted changes."""
+    """Return True if the git working tree has uncommitted or untracked changes."""
     try:
         result = subprocess.run(
-            ["git", "diff", "--quiet"],
+            ["git", "status", "--porcelain"],
             capture_output=True,
+            text=True,
             timeout=5,
         )
-        return result.returncode != 0
+        if result.returncode != 0:
+            return False
+        return bool(result.stdout.strip())
     except Exception:
         return False
 
 
+def _version_callback(ctx: click.Context, param: click.Parameter, value: bool) -> None:
+    """Print version with full git describe stamping and exit."""
+    if not value or ctx.resilient_parsing:
+        return
+    desc = _git_describe()
+    click.echo(f"codeagent {__version__} ({desc})")
+    ctx.exit()
+
+
 @click.group()
-@click.version_option(version=__version__, prog_name="codeagent")
+@click.option(
+    "--version",
+    is_flag=True,
+    callback=_version_callback,
+    expose_value=False,
+    is_eager=True,
+    help="Show the version and exit.",
+)
 def main() -> None:
     """Coding-Agent Runtime — autonomous code-repair agent framework."""
 
