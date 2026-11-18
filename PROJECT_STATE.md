@@ -10,18 +10,20 @@
 |---|---|---|---|
 | ISS-001 | Project scaffold: packaging layout, CLI stub, and typed Pydantic schemas | `feat/001-project-scaffold` | ✅ Done |
 | ISS-002 | Git hygiene, tagged milestones, and dirty-tree guard | `feat/002-git-hygiene` | ✅ Done |
+| ISS-003 | Research habits: ADR template and experiment note template | `feat/003-research-templates` | ✅ Done |
 
 ---
 
 ## Current Progress
 
 - **Phase:** P0 — Project Foundations
-- **Latest commit:** `feat/002-git-hygiene` branch
-- **Test suite:** 33 tests passing (0.43s)
+- **Latest commit:** `feat/003-research-templates` branch
+- **Test suite:** 36 tests passing (0.66s)
 - **Package:** `codeagent 0.1.0` installable via `pip install -e ".[dev]"`
 - **Git Tags:** `v0-scaffold`, `schemas-v1`
 - **Milestone Manifest:** `manifest.json` (SHA-256 verified)
 - **Lockfile:** `requirements.lock`
+- **Research Standards:** ADR 0001, ADR template, and pre-registered experiment note template in place
 
 ---
 
@@ -34,6 +36,8 @@
 - **Milestone Manifest:** SHA-256 hash manifest (`scripts/manifest.py`) verifying frozen file integrity
 - **Schema validation:** Pydantic v2 with `extra="forbid"` and `schema_version` on every model
 - **Determinism:** `seed_all()` utility, `stable_json()` with sorted keys, `content_hash()` via SHA-256
+- **Architecture Decision Records:** Michael Nygard format (`docs/decisions/0001-record-decisions.md`, `_template.md`)
+- **Pre-Registration Gate:** Mandatory 5-field experiment note structure (Hypothesis, Stop Rule, Config Hash, Result, Decision) before any compute run
 - **Python version:** 3.11+ (developed on 3.12.3)
 
 ---
@@ -67,4 +71,4 @@
 
 ## Next Step
 
-**ISS-003** · Research habits: ADR template and experiment note template
+**ISS-004** · Trace event logger and reader with content hashing
