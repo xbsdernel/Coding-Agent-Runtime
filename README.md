@@ -148,6 +148,14 @@ pytest -q
 
 ---
 
+## Experimental Workflow & Research Standards
+
+1. **Architecture Decision Records (ADRs):** Significant design decisions and frozen interfaces are documented in [`docs/decisions/`](docs/decisions/), initiated with [ADR 0001](docs/decisions/0001-record-decisions.md) and templated via [`docs/decisions/_template.md`](docs/decisions/_template.md).
+2. **Pre-Registered Experiment Notes:** All experimental runs require pre-declared hypotheses and stop rules authored in [`experiments/_template.md`](experiments/_template.md) prior to execution, capturing exact configuration hashes and empirical results.
+3. **Screening & Confirmatory Phases:** Dev-set successive halving is followed by pre-registered evaluation on held-out benchmark splits.
+
+---
+
 ## Roadmap
 
 Development follows a staged 7-phase plan across 58 implementation issues:
