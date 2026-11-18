@@ -1,0 +1,12 @@
+{
+  "created_at": "2026-11-18T08:27:32.096702+00:00",
+  "files": {
+    "pyproject.toml": "0197c024c02726c7d6feecbf78481b73a131d432f89c38621fbe54fdf962f8db",
+    "src/codeagent/__init__.py": "f5bddd7f914835095eccc2eda5b39ab43664727fb95550f5c6df69245bec1eb0",
+    "src/codeagent/cli.py": "55312d44ab1a28fbd5b29996103f70e1f9bdf35d2bce680c7200ec526de214d3",
+    "src/codeagent/schemas.py": "9089a57c61224212395580eb4c26af97e1f6e493c4dc0e4702734e8e5d68fd62"
+  },
+  "git_commit": "3ab0d584200e086032bff54d4eeba17e5abdf295",
+  "git_tag": "schemas-v1",
+  "milestone": "v0-scaffold"
+}
