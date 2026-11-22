@@ -13,14 +13,15 @@
 | ISS-003 | Research habits: ADR template and experiment note template | `feat/003-research-templates` | ✅ Done |
 | ISS-004 | Trace event logger and reader with content hashing | `feat/004-trace-logger-reader` | ✅ Done |
 | ISS-005 | First CI workflow: lint, type-check, and fast tests | `feat/005-ci-workflow` | ✅ Done |
+| ISS-006 | Launch and validate vLLM/SGLang server | `feat/006-model-server` | ✅ Done |
 
 ---
 
 ## Current Progress
 
-- **Phase:** P0 Complete (Epic 1 complete)
-- **Latest commit:** `feat/005-ci-workflow` branch
-- **Test suite:** 43 tests passing (0.39s)
+- **Phase:** P1 — Epic 2 (Model Server)
+- **Latest commit:** `feat/006-model-server` branch
+- **Test suite:** 45 tests passing (1.07s)
 - **Package:** `codeagent 0.1.0` installable via `pip install -e ".[dev]"`
 - **Git Tags:** `v0-scaffold`, `schemas-v1`
 - **Milestone Manifest:** `manifest.json` (SHA-256 verified)
@@ -28,6 +29,7 @@
 - **Research Standards:** ADR 0001, ADR template, and pre-registered experiment note template in place
 - **Telemetry & Tracing:** Append-only JSONL `TraceWriter` and aggregating `TraceReader` with SHA-256 content hashes
 - **CI / CD:** GitHub Actions matrix workflow (`.github/workflows/ci.yml`) validating ruff lint, format check, strict mypy, and fast pytest across Python 3.11 and 3.12
+- **Model Server:** `scripts/serve.sh` launcher supporting vLLM/SGLang with prefix caching, offline mock server (`scripts/mock_server.py`), and probe validator (`scripts/probe_server.py`) with baseline artifacts in `reports/probe_report/`
 
 ---
 
@@ -76,4 +78,4 @@
 
 ## Next Step
 
-**ISS-006** · Launch and validate vLLM/SGLang server (Epic 2, Batch 2)
+**ISS-007** · Model selection decision record (ADR 0002)

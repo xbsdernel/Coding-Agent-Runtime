@@ -1,0 +1,15 @@
+{
+  "model": "Qwen/Qwen2.5-Coder-7B-Instruct",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a professional software engineer."
+    },
+    {
+      "role": "user",
+      "content": "Explain prefix caching in autonomous coding agents in one sentence."
+    }
+  ],
+  "temperature": 0.2,
+  "stream": false
+}

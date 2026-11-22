@@ -1,0 +1,15 @@
+{
+  "model": "Qwen/Qwen2.5-Coder-7B-Instruct",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a professional software engineer."
+    },
+    {
+      "role": "user",
+      "content": "Write a quick test function for prefix verification."
+    }
+  ],
+  "temperature": 0.2,
+  "stream": true
+}

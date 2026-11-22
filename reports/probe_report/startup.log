@@ -1,0 +1,5 @@
+=== Model Server Probe Verification ===
+Base URL: http://127.0.0.1:8999
+Model: Qwen/Qwen2.5-Coder-7B-Instruct
+Prefix Caching: Verified (prompt_tokens_details reported)
+Status: Operational
