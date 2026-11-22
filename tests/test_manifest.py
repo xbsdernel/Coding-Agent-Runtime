@@ -2,19 +2,15 @@
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
-
-import pytest
-
 # Add scripts directory to sys.path so manifest module can be imported
 import sys
+from pathlib import Path
 
 scripts_dir = str(Path(__file__).resolve().parent.parent / "scripts")
 if scripts_dir not in sys.path:
     sys.path.insert(0, scripts_dir)
 
-from manifest import generate_manifest, sha256_file, verify_manifest
+from manifest import generate_manifest, sha256_file, verify_manifest  # noqa: E402
 
 
 def test_sha256_file(tmp_path: Path):
