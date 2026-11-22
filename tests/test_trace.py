@@ -5,9 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
 
-from codeagent.schemas import EventKind, TraceEvent, content_hash
+from codeagent.schemas import EventKind, TraceEvent
 from codeagent.trace import TraceReader, TraceWriter
 
 
@@ -32,7 +31,11 @@ def test_20_event_round_trip_and_aggregates(tmp_path: Path):
     with TraceWriter(trace_path) as writer:
         for step in range(20):
             kind = kinds[step % len(kinds)]
-            prompt = 100 + step * 10 if kind in (EventKind.model_request, EventKind.model_response) else 0
+            prompt = (
+                100 + step * 10
+                if kind in (EventKind.model_request, EventKind.model_response)
+                else 0
+            )
             completion = 50 + step * 2 if kind == EventKind.model_response else 0
             cached = 80 if kind in (EventKind.model_request, EventKind.model_response) else 0
             dur = 15.5 * (step + 1)

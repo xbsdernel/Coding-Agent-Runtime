@@ -10,12 +10,11 @@ from __future__ import annotations
 import hashlib
 import json
 import random
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -44,7 +43,7 @@ def stable_json(obj: Any) -> str:
 # ---------------------------------------------------------------------------
 
 
-class StopReason(str, Enum):
+class StopReason(StrEnum):
     """Why an episode ended."""
 
     submitted = "submitted"
@@ -57,7 +56,7 @@ class StopReason(str, Enum):
     unfinished = "unfinished"
 
 
-class EventKind(str, Enum):
+class EventKind(StrEnum):
     """Discriminator for trace events."""
 
     model_request = "model_request"
@@ -87,7 +86,7 @@ class TraceEvent(BaseModel):
     step: int = Field(..., ge=0, description="Zero-based step counter within the run.")
     kind: EventKind
     timestamp: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
         description="UTC wall-clock time of the event.",
     )
     prompt_tokens: int = Field(default=0, ge=0)
@@ -127,7 +126,9 @@ class ExperimentConfig(BaseModel):
     max_cost_usd: float = Field(default=5.0, gt=0.0)
     context_policy: str = Field(default="full_history")
     edit_format: str = Field(default="search_replace")
-    tools_enabled: list[str] = Field(default_factory=lambda: ["view", "search", "edit", "run", "submit"])
+    tools_enabled: list[str] = Field(
+        default_factory=lambda: ["view", "search", "edit", "run", "submit"]
+    )
     hooks_enabled: list[str] = Field(default_factory=list)
     git_commit: str = Field(default="", description="HEAD SHA at launch time.")
     config_hash: str = Field(default="", description="SHA-256 of this config's stable JSON.")

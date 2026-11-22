@@ -8,7 +8,7 @@ that invalid input is rejected loudly.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from pydantic import ValidationError
@@ -24,7 +24,6 @@ from codeagent.schemas import (
     seed_all,
     stable_json,
 )
-
 
 # ---- Helpers ---------------------------------------------------------------
 
@@ -44,7 +43,7 @@ TRACE_EVENT_DATA = {
     "run_id": "run-001",
     "step": 0,
     "kind": EventKind.model_request,
-    "timestamp": datetime(2026, 1, 1, tzinfo=timezone.utc),
+    "timestamp": datetime(2026, 1, 1, tzinfo=UTC),
     "prompt_tokens": 100,
     "completion_tokens": 50,
     "cached_tokens": 80,

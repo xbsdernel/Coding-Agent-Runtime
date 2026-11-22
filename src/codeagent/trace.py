@@ -7,8 +7,9 @@ OpenTelemetry GenAI semantic conventions and the frozen TraceEvent schema.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 from pydantic import ValidationError
 
@@ -23,7 +24,7 @@ class TraceWriter:
         self.require_hash = require_hash
         self.path.parent.mkdir(parents=True, exist_ok=True)
         # Open file in append mode with explicit utf-8 encoding
-        self._file = open(self.path, "a", encoding="utf-8")
+        self._file = open(self.path, "a", encoding="utf-8")  # noqa: SIM115
 
     def __enter__(self) -> TraceWriter:
         return self
@@ -89,7 +90,7 @@ class TraceReader:
 
     def iter_events(self) -> Iterator[TraceEvent]:
         """Stream validated TraceEvents line-by-line."""
-        with open(self.path, "r", encoding="utf-8") as f:
+        with open(self.path, encoding="utf-8") as f:
             for line_no, line in enumerate(f, start=1):
                 raw = line.strip()
                 if not raw:
@@ -98,7 +99,8 @@ class TraceReader:
                     data = json.loads(raw)
                     yield TraceEvent.model_validate(data)
                 except (json.JSONDecodeError, ValidationError) as e:
-                    raise ValueError(f"Malformed trace event at line {line_no} in {self.path}: {e}") from e
+                    msg = f"Malformed trace event at line {line_no} in {self.path}: {e}"
+                    raise ValueError(msg) from e
 
     def events(self) -> list[TraceEvent]:
         """Read all events into memory."""

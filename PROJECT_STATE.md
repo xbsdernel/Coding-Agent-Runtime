@@ -12,20 +12,22 @@
 | ISS-002 | Git hygiene, tagged milestones, and dirty-tree guard | `feat/002-git-hygiene` | ✅ Done |
 | ISS-003 | Research habits: ADR template and experiment note template | `feat/003-research-templates` | ✅ Done |
 | ISS-004 | Trace event logger and reader with content hashing | `feat/004-trace-logger-reader` | ✅ Done |
+| ISS-005 | First CI workflow: lint, type-check, and fast tests | `feat/005-ci-workflow` | ✅ Done |
 
 ---
 
 ## Current Progress
 
-- **Phase:** P0 — Project Foundations
-- **Latest commit:** `feat/004-trace-logger-reader` branch
-- **Test suite:** 41 tests passing (0.43s)
+- **Phase:** P0 Complete (Epic 1 complete)
+- **Latest commit:** `feat/005-ci-workflow` branch
+- **Test suite:** 43 tests passing (0.39s)
 - **Package:** `codeagent 0.1.0` installable via `pip install -e ".[dev]"`
 - **Git Tags:** `v0-scaffold`, `schemas-v1`
 - **Milestone Manifest:** `manifest.json` (SHA-256 verified)
 - **Lockfile:** `requirements.lock`
 - **Research Standards:** ADR 0001, ADR template, and pre-registered experiment note template in place
 - **Telemetry & Tracing:** Append-only JSONL `TraceWriter` and aggregating `TraceReader` with SHA-256 content hashes
+- **CI / CD:** GitHub Actions matrix workflow (`.github/workflows/ci.yml`) validating ruff lint, format check, strict mypy, and fast pytest across Python 3.11 and 3.12
 
 ---
 
@@ -68,10 +70,10 @@
 ## Known Limitations
 
 - CLI `run` command is a placeholder — requires ISS-021 (agent loop state machine).
-- No CI workflow yet — planned in ISS-005.
+- Model server integration pending in Epic 2.
 
 ---
 
 ## Next Step
 
-**ISS-005** · Base CI workflow: lint, typing, and unit test suite
+**ISS-006** · Launch and validate vLLM/SGLang server (Epic 2, Batch 2)

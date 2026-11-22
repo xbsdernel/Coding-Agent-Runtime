@@ -11,7 +11,7 @@ import hashlib
 import json
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 DEFAULT_FROZEN_FILES = [
@@ -80,7 +80,7 @@ def generate_manifest(
         "milestone": milestone,
         "git_commit": get_git_commit(),
         "git_tag": get_git_tag(),
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
         "files": entries,
     }
 
@@ -98,7 +98,7 @@ def verify_manifest(manifest_path: Path, root_dir: Path | None = None) -> bool:
         print(f"ERROR: Manifest file not found: {manifest_path}", file=sys.stderr)
         return False
 
-    with open(manifest_path, "r", encoding="utf-8") as f:
+    with open(manifest_path, encoding="utf-8") as f:
         data = json.load(f)
 
     files = data.get("files", {})
@@ -115,7 +115,11 @@ def verify_manifest(manifest_path: Path, root_dir: Path | None = None) -> bool:
         if actual_hash == expected_hash:
             print(f"  [OK]      {rel_path}")
         else:
-            print(f"  [MUTATED] {rel_path} (expected {expected_hash[:8]}..., got {actual_hash[:8]}...)", file=sys.stderr)
+            msg = (
+                f"  [MUTATED] {rel_path} "
+                f"(expected {expected_hash[:8]}..., got {actual_hash[:8]}...)"
+            )
+            print(msg, file=sys.stderr)
             all_ok = False
 
     return all_ok
@@ -127,17 +131,22 @@ def main() -> None:
 
     gen_p = subparsers.add_parser("generate", help="Generate manifest file")
     gen_p.add_argument("--milestone", required=True, help="Milestone label (e.g. schemas-v1)")
-    gen_p.add_argument("--output", default="manifest.json", help="Output path (default: manifest.json)")
+    gen_p.add_argument(
+        "--output", default="manifest.json", help="Output path (default: manifest.json)"
+    )
 
     ver_p = subparsers.add_parser("verify", help="Verify files against manifest")
-    ver_p.add_argument("--manifest", default="manifest.json", help="Manifest path (default: manifest.json)")
+    ver_p.add_argument(
+        "--manifest", default="manifest.json", help="Manifest path (default: manifest.json)"
+    )
 
     args = parser.parse_args()
 
     if args.command == "generate":
         out = Path(args.output)
         manifest = generate_manifest(args.milestone, out)
-        print(f"Generated manifest for {args.milestone} at {out} with {len(manifest['files'])} files.")
+        count = len(manifest["files"])
+        print(f"Generated manifest for {args.milestone} at {out} with {count} files.")
     elif args.command == "verify":
         ok = verify_manifest(Path(args.manifest))
         if not ok:
