@@ -52,3 +52,29 @@ def test_readme_references_templates():
     text = readme.read_text(encoding="utf-8")
     assert "0001-record-decisions.md" in text or "docs/decisions" in text
     assert "experiments/_template.md" in text
+
+
+def test_adr_0002_model_selection():
+    """Verify ADR 0002 documents primary model selection with rejected alternatives."""
+    adr_0002 = ROOT / "docs" / "decisions" / "0002-model-selection.md"
+    assert adr_0002.is_file(), "0002-model-selection.md must exist"
+
+    text = adr_0002.read_text(encoding="utf-8")
+
+    # Required sections
+    assert "Context" in text
+    assert "Options Considered" in text
+    assert "Decision" in text
+    assert "Consequences" in text
+
+    # Chosen option and rejected alternatives
+    assert "Qwen/Qwen2.5-Coder-7B-Instruct" in text or "Qwen2.5-Coder" in text
+    assert "DeepSeek" in text
+    assert "Llama" in text
+
+    # Explicit rejection criteria cited
+    text_lower = text.lower()
+    assert "licence" in text_lower or "license" in text_lower
+    assert "context length" in text_lower
+    assert "resolve rate" in text_lower
+    assert "tool-call" in text_lower or "tool call" in text_lower

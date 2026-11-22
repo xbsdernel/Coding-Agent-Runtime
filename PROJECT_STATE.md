@@ -14,19 +14,20 @@
 | ISS-004 | Trace event logger and reader with content hashing | `feat/004-trace-logger-reader` | ✅ Done |
 | ISS-005 | First CI workflow: lint, type-check, and fast tests | `feat/005-ci-workflow` | ✅ Done |
 | ISS-006 | Launch and validate vLLM/SGLang server | `feat/006-model-server` | ✅ Done |
+| ISS-007 | Model selection decision record | `feat/007-model-selection` | ✅ Done |
 
 ---
 
 ## Current Progress
 
 - **Phase:** P1 — Epic 2 (Model Server)
-- **Latest commit:** `feat/006-model-server` branch
-- **Test suite:** 45 tests passing (1.07s)
+- **Latest commit:** `feat/007-model-selection` branch
+- **Test suite:** 46 tests passing (1.08s)
 - **Package:** `codeagent 0.1.0` installable via `pip install -e ".[dev]"`
 - **Git Tags:** `v0-scaffold`, `schemas-v1`
 - **Milestone Manifest:** `manifest.json` (SHA-256 verified)
 - **Lockfile:** `requirements.lock`
-- **Research Standards:** ADR 0001, ADR template, and pre-registered experiment note template in place
+- **Research Standards:** ADR 0001, ADR 0002 (Model Selection: Qwen2.5-Coder-7B), ADR template, and pre-registered experiment note template in place
 - **Telemetry & Tracing:** Append-only JSONL `TraceWriter` and aggregating `TraceReader` with SHA-256 content hashes
 - **CI / CD:** GitHub Actions matrix workflow (`.github/workflows/ci.yml`) validating ruff lint, format check, strict mypy, and fast pytest across Python 3.11 and 3.12
 - **Model Server:** `scripts/serve.sh` launcher supporting vLLM/SGLang with prefix caching, offline mock server (`scripts/mock_server.py`), and probe validator (`scripts/probe_server.py`) with baseline artifacts in `reports/probe_report/`
@@ -78,4 +79,4 @@
 
 ## Next Step
 
-**ISS-007** · Model selection decision record (ADR 0002)
+**ISS-008** · KV-cache size calculation and back-of-envelope benchmarks
