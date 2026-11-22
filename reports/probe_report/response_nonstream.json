@@ -1,0 +1,24 @@
+{
+  "id": "chatcmpl-mock-1795352501465",
+  "object": "chat.completion",
+  "created": 1795352501,
+  "model": "Qwen/Qwen2.5-Coder-7B-Instruct",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Mock response: Processed query regarding 'Explain prefix caching in autonomous cod'."
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 20,
+    "completion_tokens": 11,
+    "total_tokens": 31,
+    "prompt_tokens_details": {
+      "cached_tokens": 16
+    }
+  }
+}
