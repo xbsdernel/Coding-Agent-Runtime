@@ -18,14 +18,15 @@
 | ISS-008 | KV-cache size calculation and back-of-envelope benchmarks | `feat/008-kv-cache-analysis` | ✅ Done |
 | ISS-009 | Chat-template rendering and prefix-stability verification | `feat/009-prefix-stability` | ✅ Done |
 | ISS-010 | Tool-call parser: mode comparison (native / text-format / guided decoding) | `feat/010-tool-call-modes` | ✅ Done |
+| ISS-011 | Build task-environment images and validate grading | `feat/011-task-environment-grading` | ✅ Done |
 
 ---
 
 ## Current Progress
 
-- **Phase:** P1 Complete (Epic 1 & Epic 2 Complete)
-- **Latest commit:** `feat/010-tool-call-modes` branch
-- **Test suite:** 63 tests passing (1.85s)
+- **Phase:** P1 (Epic 1 & Epic 2 Complete, Epic 3 in progress)
+- **Latest commit:** `feat/011-task-environment-grading` branch
+- **Test suite:** 71 tests passing (12.13s)
 - **Package:** `codeagent 0.1.0` installable via `pip install -e ".[dev]"`
 - **Git Tags:** `v0-scaffold`, `schemas-v1`
 - **Milestone Manifest:** `manifest.json` (SHA-256 verified)
@@ -37,6 +38,7 @@
 - **KV-Cache Sizing:** Memory model and capacity benchmarks documented in `reports/kv_cache_analysis.md` and `scripts/kv_cache_calc.py` (56.0 KiB/token, 896 KiB/block, >110k cached tokens on 24GB GPU)
 - **Chat Template & Prefix Stability:** ChatML renderer (`src/codeagent/chat_template.py`), deterministic tool schema formatting, `parse_tool_calls`, and verification report in `reports/prefix_stability.md`
 - **Tool-Calling Modes:** Multi-mode parsers (`src/codeagent/tool_parser.py`) for Native, Plain-Text, and Guided Decoding; empirical benchmark report in `reports/tool_call_modes.md` establishing Native Tool Calling for S6 episode loop
+- **Task Environments & Authoritative Grader:** Canonical benchmark tasks (`src/codeagent/task.py`), tamper-resistant grading engine (`src/codeagent/grader.py`) ignoring candidate test modifications, and environment image metrics documented in `reports/task_images.csv`
 
 ---
 
@@ -79,10 +81,10 @@
 ## Known Limitations
 
 - CLI `run` command is a placeholder — requires ISS-021 (agent loop state machine).
-- Task environment runner and evaluation harness pending in Epic 3.
+- Contamination-aware task splitting pending in ISS-012.
 
 ---
 
 ## Next Step
 
-**ISS-011** · Build task-environment images and validate grading (Epic 3, Batch 3)
+**ISS-012** · Contamination-aware task splitting (Epic 3, Batch 3)

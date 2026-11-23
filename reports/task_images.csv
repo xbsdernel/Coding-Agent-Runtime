@@ -1,0 +1,4 @@
+task_id,image_name,build_time_s,image_size_mb,created_at
+calc_001_div_zero,task-env-calc:latest,1.39,148.4,2026-11-23T22:56:48Z
+formatter_002_truncate,task-env-formatter:latest,1.51,150.6,2026-11-23T22:56:49Z
+graph_003_cycle,task-env-graph:latest,1.40,151.5,2026-11-23T22:56:49Z
