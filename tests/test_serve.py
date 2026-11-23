@@ -3,13 +3,19 @@
 from __future__ import annotations
 
 import json
+import sys
 import threading
 import time
 from http.server import HTTPServer
 from pathlib import Path
 
-from scripts.mock_server import MockOpenAIHandler
-from scripts.probe_server import probe_server
+# Add scripts directory to sys.path
+scripts_dir = str(Path(__file__).resolve().parent.parent / "scripts")
+if scripts_dir not in sys.path:
+    sys.path.insert(0, scripts_dir)
+
+from mock_server import MockOpenAIHandler  # noqa: E402
+from probe_server import probe_server  # noqa: E402
 
 
 def test_serve_script_exists_and_executable():

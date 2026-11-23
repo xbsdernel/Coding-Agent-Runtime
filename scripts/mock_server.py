@@ -21,6 +21,7 @@ class MockOpenAIHandler(BaseHTTPRequestHandler):
 
     model_name: str = "Qwen/Qwen2.5-Coder-7B-Instruct"
     context_length: int = 32768
+    last_prompt_repr: str = ""
 
     def log_message(self, format: str, *args: Any) -> None:
         """Suppress default stderr request logging."""
@@ -87,12 +88,48 @@ class MockOpenAIHandler(BaseHTTPRequestHandler):
                 user_prompt = m.get("content", "")
                 break
 
-        response_text = f"Mock response: Processed query regarding '{user_prompt[:40]}'."
+        # Check for tool calling request
+        tools = body.get("tools")
+        if tools or "tool" in user_prompt.lower():
+            tool_name = "view_file"
+            if tools and isinstance(tools, list) and len(tools) > 0:
+                first_tool = tools[0]
+                tool_name = first_tool.get("function", {}).get(
+                    "name", first_tool.get("name", "view_file")
+                )
+            response_text = (
+                "I will execute the tool.\n<tool_call>\n"
+                f'{{"name": "{tool_name}", "arguments": {{"path": "src/codeagent/cli.py"}}}}\n'
+                "</tool_call>"
+            )
+        else:
+            response_text = f"Mock response: Processed query regarding '{user_prompt[:40]}'."
+
+        # Compute prefix cache hits by checking common prefix against last prompt
+        full_prompt_repr = "|".join(f"{m.get('role')}:{m.get('content')}" for m in messages)
+        cached_tokens = 0
+        if MockOpenAIHandler.last_prompt_repr:
+            # Measure common prefix length
+            prefix_len = 0
+            for c1, c2 in zip(MockOpenAIHandler.last_prompt_repr, full_prompt_repr, strict=False):
+                if c1 == c2:
+                    prefix_len += 1
+                else:
+                    break
+
+            # If common prefix extends through early messages (e.g. >= 20 characters),
+            # count cached tokens. If early character broke, cached_tokens is 0.
+            if prefix_len >= 20:
+                cached_tokens = max(1, len(full_prompt_repr[:prefix_len].split()))
+            else:
+                cached_tokens = 0
+
+        MockOpenAIHandler.last_prompt_repr = full_prompt_repr
 
         if is_stream:
             self._send_sse_stream(model, response_text)
         else:
-            prompt_tokens = max(1, len(user_prompt.split())) + 10
+            prompt_tokens = max(1, len(user_prompt.split())) + 15
             completion_tokens = max(1, len(response_text.split()))
             payload = {
                 "id": f"chatcmpl-mock-{int(time.time() * 1000)}",
@@ -113,7 +150,7 @@ class MockOpenAIHandler(BaseHTTPRequestHandler):
                     "prompt_tokens": prompt_tokens,
                     "completion_tokens": completion_tokens,
                     "total_tokens": prompt_tokens + completion_tokens,
-                    "prompt_tokens_details": {"cached_tokens": int(prompt_tokens * 0.8)},
+                    "prompt_tokens_details": {"cached_tokens": cached_tokens},
                 },
             }
             self._send_json(200, payload)
