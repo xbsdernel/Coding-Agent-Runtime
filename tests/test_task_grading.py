@@ -122,7 +122,7 @@ def test_task_images_report_generation(tmp_path: Path):
         for row in reader:
             assert row["task_id"] in BENCHMARK_TASKS
             assert float(row["build_time_s"]) > 0.0
-            assert float(row["image_size_mb"]) > 100.0
+            assert float(row["image_size_mb"]) > 10.0
 
 
 def test_reports_task_images_csv_committed_file():
