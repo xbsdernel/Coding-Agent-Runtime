@@ -16,14 +16,15 @@
 | ISS-006 | Launch and validate vLLM/SGLang server | `feat/006-model-server` | ✅ Done |
 | ISS-007 | Model selection decision record | `feat/007-model-selection` | ✅ Done |
 | ISS-008 | KV-cache size calculation and back-of-envelope benchmarks | `feat/008-kv-cache-analysis` | ✅ Done |
+| ISS-009 | Chat-template rendering and prefix-stability verification | `feat/009-prefix-stability` | ✅ Done |
 
 ---
 
 ## Current Progress
 
 - **Phase:** P1 — Epic 2 (Model Server)
-- **Latest commit:** `feat/008-kv-cache-analysis` branch
-- **Test suite:** 50 tests passing (1.30s)
+- **Latest commit:** `feat/009-prefix-stability` branch
+- **Test suite:** 55 tests passing (1.35s)
 - **Package:** `codeagent 0.1.0` installable via `pip install -e ".[dev]"`
 - **Git Tags:** `v0-scaffold`, `schemas-v1`
 - **Milestone Manifest:** `manifest.json` (SHA-256 verified)
@@ -33,6 +34,7 @@
 - **CI / CD:** GitHub Actions matrix workflow (`.github/workflows/ci.yml`) validating ruff lint, format check, strict mypy, and fast pytest across Python 3.11 and 3.12
 - **Model Server:** `scripts/serve.sh` launcher supporting vLLM/SGLang with prefix caching, offline mock server (`scripts/mock_server.py`), and probe validator (`scripts/probe_server.py`) with baseline artifacts in `reports/probe_report/`
 - **KV-Cache Sizing:** Memory model and capacity benchmarks documented in `reports/kv_cache_analysis.md` and `scripts/kv_cache_calc.py` (56.0 KiB/token, 896 KiB/block, >110k cached tokens on 24GB GPU)
+- **Chat Template & Prefix Stability:** ChatML renderer (`src/codeagent/chat_template.py`), deterministic tool schema formatting, `parse_tool_calls`, and verification report in `reports/prefix_stability.md`
 
 ---
 
@@ -81,4 +83,4 @@
 
 ## Next Step
 
-**ISS-009** · Chat-template rendering and prefix-stability verification
+**ISS-010** · Tool-call parser: mode comparison (native / text-format / guided decoding)
