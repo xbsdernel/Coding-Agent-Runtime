@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "manifest_id": "split-976c6eebe920",
+  "model_name": "Qwen/Qwen2.5-Coder-7B-Instruct",
+  "cutoff_date": "2024-09-01T00:00:00+00:00",
+  "seed": 42,
+  "dev_ratio": 0.5,
+  "splits": {
+    "training": [
+      "calc_001_div_zero"
+    ],
+    "dev": [
+      "graph_003_cycle"
+    ],
+    "main": [
+      "formatter_002_truncate"
+    ]
+  },
+  "task_dates": {
+    "calc_001_div_zero": "2024-03-15T00:00:00+00:00",
+    "formatter_002_truncate": "2024-11-10T00:00:00+00:00",
+    "graph_003_cycle": "2025-01-20T00:00:00+00:00"
+  },
+  "counts": {
+    "training": 1,
+    "dev": 1,
+    "main": 1
+  },
+  "content_hash": "976c6eebe920e7db1e0deb068d3a8f148d175ae7c0c185eb7c5770c330b877db"
+}
