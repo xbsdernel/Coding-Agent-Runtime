@@ -19,14 +19,15 @@
 | ISS-009 | Chat-template rendering and prefix-stability verification | `feat/009-prefix-stability` | ✅ Done |
 | ISS-010 | Tool-call parser: mode comparison (native / text-format / guided decoding) | `feat/010-tool-call-modes` | ✅ Done |
 | ISS-011 | Build task-environment images and validate grading | `feat/011-task-environment-grading` | ✅ Done |
+| ISS-012 | Contamination-aware task splitting | `feat/012-task-splitting` | ✅ Done |
 
 ---
 
 ## Current Progress
 
-- **Phase:** P1 (Epic 1 & Epic 2 Complete, Epic 3 in progress)
-- **Latest commit:** `feat/011-task-environment-grading` branch
-- **Test suite:** 71 tests passing (12.13s)
+- **Phase:** P1 (Epic 1, Epic 2 & Epic 3 Complete)
+- **Latest commit:** `feat/012-task-splitting` branch
+- **Test suite:** 78 tests passing (13.84s)
 - **Package:** `codeagent 0.1.0` installable via `pip install -e ".[dev]"`
 - **Git Tags:** `v0-scaffold`, `schemas-v1`
 - **Milestone Manifest:** `manifest.json` (SHA-256 verified)
@@ -39,6 +40,7 @@
 - **Chat Template & Prefix Stability:** ChatML renderer (`src/codeagent/chat_template.py`), deterministic tool schema formatting, `parse_tool_calls`, and verification report in `reports/prefix_stability.md`
 - **Tool-Calling Modes:** Multi-mode parsers (`src/codeagent/tool_parser.py`) for Native, Plain-Text, and Guided Decoding; empirical benchmark report in `reports/tool_call_modes.md` establishing Native Tool Calling for S6 episode loop
 - **Task Environments & Authoritative Grader:** Canonical benchmark tasks (`src/codeagent/task.py`), tamper-resistant grading engine (`src/codeagent/grader.py`) ignoring candidate test modifications, and environment image metrics documented in `reports/task_images.csv`
+- **Contamination-Aware Splitting:** Date-based task splitter (`src/codeagent/splitter.py`) separating tasks into `training`, `dev`, and `main` relative to model cutoff with SHA-256 content-hashed `SplitManifest` (`reports/task_split_manifest.json`)
 
 ---
 
@@ -81,10 +83,10 @@
 ## Known Limitations
 
 - CLI `run` command is a placeholder — requires ISS-021 (agent loop state machine).
-- Contamination-aware task splitting pending in ISS-012.
+- Sandbox process runner and Docker SDK wrapper pending in Epic 4 (ISS-013, ISS-014).
 
 ---
 
 ## Next Step
 
-**ISS-012** · Contamination-aware task splitting (Epic 3, Batch 3)
+**ISS-013** · Process runner with timeout, tree-kill, and output capping (Epic 4, Batch 3)

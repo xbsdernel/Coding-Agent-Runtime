@@ -6,6 +6,8 @@ and reference gold patches.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -17,6 +19,10 @@ class TaskInstance(BaseModel):
     task_id: str = Field(..., description="Unique instance identifier.")
     repo_name: str = Field(..., description="Repository or package name.")
     base_commit: str = Field(default="HEAD", description="Base commit hash or reference.")
+    created_at: datetime = Field(
+        default_factory=lambda: datetime(2025, 1, 1, tzinfo=UTC),
+        description="UTC creation timestamp of the issue/PR for contamination splitting.",
+    )
     problem_statement: str = Field(..., description="Task issue or bug description.")
     base_files: dict[str, str] = Field(
         ..., description="Initial source files mapping relative path to content."
@@ -42,6 +48,7 @@ TASK_CALC = TaskInstance(
     task_id="calc_001_div_zero",
     repo_name="pycalculator",
     base_commit="c101a01",
+    created_at=datetime(2024, 3, 15, tzinfo=UTC),
     problem_statement=(
         "Calculator.divide currently raises unhandled ZeroDivisionError when denominator "
         "is zero. It should validate arguments and raise custom CalculationError instead."
@@ -116,6 +123,7 @@ TASK_FORMATTER = TaskInstance(
     task_id="formatter_002_truncate",
     repo_name="text-formatter",
     base_commit="f202b02",
+    created_at=datetime(2024, 11, 10, tzinfo=UTC),
     problem_statement=(
         "truncate(text, max_len, suffix) appends suffix unconditionally even when "
         "text length <= max_len, and mishandles max_len <= len(suffix)."
@@ -186,6 +194,7 @@ TASK_GRAPH = TaskInstance(
     task_id="graph_003_cycle",
     repo_name="graph-utils",
     base_commit="g303c03",
+    created_at=datetime(2025, 1, 20, tzinfo=UTC),
     problem_statement=(
         "detect_cycle(adj) returns False for all graphs. It should accurately detect "
         "directed cycles in both connected and disconnected graphs."
