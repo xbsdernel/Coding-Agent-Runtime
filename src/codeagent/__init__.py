@@ -30,6 +30,7 @@ from codeagent.schemas import (
     EventKind,
     ExperimentConfig,
     ResultRow,
+    SandboxLimits,
     StopReason,
     TraceEvent,
 )
@@ -80,6 +81,7 @@ __all__ = [
     "ResultRow",
     "RunResult",
     "SandboxConfig",
+    "SandboxLimits",
     "STANDARD_TOOLS",
     "SplitManifest",
     "SplitName",
