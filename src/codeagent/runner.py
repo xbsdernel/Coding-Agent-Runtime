@@ -17,9 +17,9 @@ from __future__ import annotations
 
 import contextlib
 import os
-import platform
 import signal
 import subprocess
+import sys
 import threading
 import time
 from collections.abc import Sequence
@@ -27,8 +27,6 @@ from collections.abc import Sequence
 from pydantic import BaseModel, Field
 
 __all__ = ["RunResult", "run_with_timeout"]
-
-_IS_WINDOWS = platform.system() == "Windows"
 
 # Grace period (seconds) between SIGTERM and SIGKILL on POSIX.
 _SIGTERM_GRACE = 2.0
@@ -84,7 +82,7 @@ def _make_popen_kwargs(cwd: str | None, env: dict[str, str] | None) -> dict[str,
         "cwd": cwd,
         "env": env,
     }
-    if _IS_WINDOWS:
+    if sys.platform == "win32":
         kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
     else:
         kwargs["start_new_session"] = True
@@ -147,9 +145,9 @@ def run_with_timeout(
     timeout_s:
         Maximum wall-clock seconds to wait before killing the process tree.
     max_bytes:
-        Combined stdout+stderr byte cap.  When reached the streams are closed
-        and the process may continue until it exits or times out, but no more
-        output is captured.
+        Combined stdout+stderr byte cap.  When reached the streams are drained
+        (data discarded) and the process may continue until it exits or times
+        out, but no more output is captured.
     cwd:
         Working directory for the subprocess.
     env:
@@ -195,7 +193,7 @@ def run_with_timeout(
     except subprocess.TimeoutExpired:
         killed = True
         pid = proc.pid
-        if _IS_WINDOWS:
+        if sys.platform == "win32":
             _kill_tree_windows(pid)
         else:
             # SIGTERM first, then SIGKILL after grace period

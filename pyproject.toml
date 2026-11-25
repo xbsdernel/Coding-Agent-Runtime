@@ -58,6 +58,19 @@ warn_return_any = true
 warn_unused_configs = true
 mypy_path = "src"
 
+[[tool.mypy.overrides]]
+# runner.py uses POSIX-only APIs (os.getpgid, os.killpg, signal.SIGKILL) that
+# are absent from Windows stubs, and Windows-only constants absent from POSIX
+# stubs. The type: ignore comments are intentionally platform-conditional.
+module = "codeagent.runner"
+warn_unused_ignores = false
+
+[[tool.mypy.overrides]]
+# sandbox.py imports docker (optional dep without stubs) and uses its dynamic API.
+module = "codeagent.sandbox"
+ignore_missing_imports = true
+warn_unused_ignores = false
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
