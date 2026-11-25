@@ -17,6 +17,7 @@ from codeagent.grader import (
     patch_modifies_test_files,
     strip_test_modifications,
 )
+from codeagent.runner import RunResult, run_with_timeout
 from codeagent.schemas import (
     BudgetSpec,
     EventKind,
@@ -67,6 +68,7 @@ __all__ = [
     "ImageBuildMetrics",
     "ParsedToolCall",
     "ResultRow",
+    "RunResult",
     "STANDARD_TOOLS",
     "SplitManifest",
     "SplitName",
@@ -94,6 +96,7 @@ __all__ = [
     "parse_tool_call_by_mode",
     "parse_tool_calls",
     "patch_modifies_test_files",
+    "run_with_timeout",
     "split_tasks",
     "strip_test_modifications",
     "tokenize_chatml",
