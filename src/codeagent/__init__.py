@@ -18,6 +18,13 @@ from codeagent.grader import (
     strip_test_modifications,
 )
 from codeagent.runner import RunResult, run_with_timeout
+from codeagent.sandbox import (
+    ContainerExecResult,
+    ContainerMetrics,
+    DockerSandbox,
+    SandboxConfig,
+    is_docker_available,
+)
 from codeagent.schemas import (
     BudgetSpec,
     EventKind,
@@ -61,6 +68,9 @@ __all__ = [
     "BENCHMARK_TASKS",
     "BudgetSpec",
     "ChatMessage",
+    "ContainerExecResult",
+    "ContainerMetrics",
+    "DockerSandbox",
     "EDIT_FILE_TOOL",
     "EventKind",
     "ExperimentConfig",
@@ -69,6 +79,7 @@ __all__ = [
     "ParsedToolCall",
     "ResultRow",
     "RunResult",
+    "SandboxConfig",
     "STANDARD_TOOLS",
     "SplitManifest",
     "SplitName",
@@ -90,6 +101,7 @@ __all__ = [
     "generate_task_images_report",
     "get_cutoff_for_model",
     "grade_instance",
+    "is_docker_available",
     "parse_guided_decoding",
     "parse_native_tool_call",
     "parse_plaintext_action",
