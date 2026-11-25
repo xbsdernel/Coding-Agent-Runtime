@@ -8,6 +8,13 @@ from codeagent.chat_template import (
     parse_tool_calls,
     tokenize_chatml,
 )
+from codeagent.client import (
+    AsyncChatClient,
+    ChatClientError,
+    ChatClientTimeoutError,
+    ClientTimeoutConfig,
+    RetryConfig,
+)
 from codeagent.grader import (
     GradingResult,
     ImageBuildMetrics,
@@ -66,9 +73,13 @@ __version__ = "0.1.0"
 
 __all__ = [
     "__version__",
+    "AsyncChatClient",
     "BENCHMARK_TASKS",
     "BudgetSpec",
+    "ChatClientError",
+    "ChatClientTimeoutError",
     "ChatMessage",
+    "ClientTimeoutConfig",
     "ContainerExecResult",
     "ContainerMetrics",
     "DockerSandbox",
@@ -79,6 +90,7 @@ __all__ = [
     "ImageBuildMetrics",
     "ParsedToolCall",
     "ResultRow",
+    "RetryConfig",
     "RunResult",
     "SandboxConfig",
     "SandboxLimits",
