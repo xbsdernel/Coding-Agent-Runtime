@@ -104,7 +104,65 @@ class TraceEvent(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# 2. ExperimentConfig
+# 2. SandboxLimits
+# ---------------------------------------------------------------------------
+
+
+class SandboxLimits(BaseModel):
+    """Configurable cgroup v2 resource limits for the Docker sandbox.
+
+    All limits have safe defaults that prevent a runaway agent process from
+    affecting the host.  Pass an instance as ``sandbox_limits`` inside
+    :class:`ExperimentConfig` to override per-experiment.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: int = Field(default=1, frozen=True)
+
+    memory_limit_mb: int = Field(
+        default=256,
+        ge=16,
+        description=(
+            "Container memory limit in MiB (cgroup v2 ``memory.max``). "
+            "256 MiB is enough for most single-file Python tasks while preventing OOM "
+            "from propagating to the host."
+        ),
+    )
+    cpu_quota_us: int = Field(
+        default=50_000,
+        ge=1_000,
+        description=(
+            "CPU quota in microseconds per 100 ms period (cgroup v2 ``cpu.max`` numerator). "
+            "50 000 µs = 50 % of one core.  Prevents hot loops from starving other containers."
+        ),
+    )
+    pids_limit: int = Field(
+        default=64,
+        ge=1,
+        description=(
+            "Maximum number of processes/threads (cgroup v2 ``pids.max``). "
+            "64 is generous for a single-task Python agent but blocks fork-bomb exploits."
+        ),
+    )
+    network_disabled: bool = Field(
+        default=True,
+        description=(
+            "Disable all network access inside the container.  "
+            "Prevents agents from exfiltrating data or installing unexpected packages."
+        ),
+    )
+    no_new_privileges: bool = Field(
+        default=True,
+        description=(
+            "Set the ``no_new_privs`` seccomp flag so agent processes cannot gain "
+            "additional capabilities via setuid/setgid binaries."
+        ),
+    )
+
+
+# ---------------------------------------------------------------------------
+# 3. ExperimentConfig
 # ---------------------------------------------------------------------------
 
 
@@ -132,6 +190,10 @@ class ExperimentConfig(BaseModel):
     hooks_enabled: list[str] = Field(default_factory=list)
     git_commit: str = Field(default="", description="HEAD SHA at launch time.")
     config_hash: str = Field(default="", description="SHA-256 of this config's stable JSON.")
+    sandbox_limits: SandboxLimits = Field(
+        default_factory=SandboxLimits,
+        description="cgroup v2 resource limits applied to every sandbox container in this run.",
+    )
 
     def compute_hash(self) -> str:
         """Compute and return the config hash from all fields except config_hash itself."""
