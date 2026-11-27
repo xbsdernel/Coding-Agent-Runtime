@@ -1,0 +1,310 @@
+"""Tests for ISS-018: Core tools: view, search, edit, run, submit.
+
+Verifies:
+- Normal output and deterministic error output for each of the 5 tools.
+- Observation size capping (max_bytes limit) on all tools.
+- Switching edit format (search_replace vs line_range) via config.
+- Tool descriptions contain usage examples.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import pytest
+
+from codeagent.tools import (
+    CoreToolRegistry,
+    EditFormat,
+    get_core_tool_definitions,
+)
+
+
+@pytest.fixture
+def scratch_repo(tmp_path: Path) -> Path:
+    """Create a temporary scratch repository fixture with sample files."""
+    repo = tmp_path / "scratch_repo"
+    repo.mkdir()
+    (repo / "src").mkdir()
+
+    # Create sample files
+    (repo / "README.md").write_text("# Scratch Project\nA demo repo for testing tools.\n")
+    (repo / "src" / "calc.py").write_text(
+        "def add(a: int, b: int) -> int:\n"
+        "    return a + b\n\n"
+        "def sub(a: int, b: int) -> int:\n"
+        "    return a - b\n"
+    )
+    (repo / "src" / "utils.py").write_text(
+        "def log(msg: str) -> None:\n    print(f'[LOG] {msg}')\n"
+    )
+    return repo
+
+
+# ---------------------------------------------------------------------------
+# Tool Descriptions & Examples Tests
+# ---------------------------------------------------------------------------
+
+
+def test_tool_definitions_include_examples():
+    """All 5 core tools must include a usage example in their description."""
+    defs = get_core_tool_definitions(EditFormat.SEARCH_REPLACE)
+    assert len(defs) == 5
+    for name, tool_def in defs.items():
+        assert "example" in tool_def.description.lower(), f"Tool '{name}' lacks usage example."
+
+    # Also test line_range edit definition
+    lr_defs = get_core_tool_definitions(EditFormat.LINE_RANGE)
+    assert "example" in lr_defs["edit"].description.lower()
+
+
+# ---------------------------------------------------------------------------
+# Tool: view Tests
+# ---------------------------------------------------------------------------
+
+
+def test_view_tool_normal(scratch_repo: Path):
+    """View tool displays file contents with line numbers."""
+    registry = CoreToolRegistry(scratch_repo)
+    res = registry.execute("view", {"path": "src/calc.py"})
+    assert not res.is_error
+    assert "1 | def add(a: int, b: int) -> int:" in res.output
+    assert "2 |     return a + b" in res.output
+
+    # View line slice
+    slice_res = registry.execute("view", {"path": "src/calc.py", "start_line": 4, "end_line": 5})
+    assert not slice_res.is_error
+    assert "4 | def sub(a: int, b: int) -> int:" in slice_res.output
+    assert "1 |" not in slice_res.output
+
+
+def test_view_tool_error(scratch_repo: Path):
+    """View tool returns deterministic error on nonexistent file or invalid lines."""
+    registry = CoreToolRegistry(scratch_repo)
+    # Nonexistent file
+    res1 = registry.execute("view", {"path": "nonexistent.py"})
+    assert res1.is_error
+    assert "Error: File 'nonexistent.py' does not exist" in res1.output
+
+    # Path escaping repo root
+    res2 = registry.execute("view", {"path": "../../outside.txt"})
+    assert res2.is_error
+    assert "escapes the repository root" in res2.output
+
+    # Invalid line ranges
+    res3 = registry.execute("view", {"path": "src/calc.py", "start_line": 10, "end_line": 5})
+    assert res3.is_error
+    assert "cannot be greater than end_line" in res3.output
+
+
+# ---------------------------------------------------------------------------
+# Tool: search Tests
+# ---------------------------------------------------------------------------
+
+
+def test_search_tool_normal(scratch_repo: Path):
+    """Search tool finds regex and text patterns across files."""
+    registry = CoreToolRegistry(scratch_repo)
+    res = registry.execute("search", {"pattern": "def add", "path": "."})
+    assert not res.is_error
+    assert "src/calc.py" in res.output or "src\\calc.py" in res.output
+    assert "def add(a: int, b: int) -> int:" in res.output
+
+
+def test_search_tool_error(scratch_repo: Path):
+    """Search tool returns deterministic error on invalid regex or bad path."""
+    registry = CoreToolRegistry(scratch_repo)
+    # Invalid regex
+    res1 = registry.execute("search", {"pattern": "[unclosed bracket", "path": "."})
+    assert res1.is_error
+    assert "Error: Invalid regular expression pattern" in res1.output
+
+    # Nonexistent search path
+    res2 = registry.execute("search", {"pattern": "foo", "path": "does_not_exist"})
+    assert res2.is_error
+    assert "Error: Search path 'does_not_exist' does not exist" in res2.output
+
+
+# ---------------------------------------------------------------------------
+# Tool: edit Tests (Search-and-Replace & Line-Range)
+# ---------------------------------------------------------------------------
+
+
+def test_edit_search_replace_normal(scratch_repo: Path):
+    """Edit with search_replace modifies unique target string."""
+    registry = CoreToolRegistry(scratch_repo, edit_format=EditFormat.SEARCH_REPLACE)
+    res = registry.execute(
+        "edit",
+        {"path": "src/calc.py", "old_str": "return a + b", "new_str": "return a + b + 1"},
+    )
+    assert not res.is_error
+    assert "Successfully replaced match" in res.output
+    # Verify file content on disk
+    content = (scratch_repo / "src" / "calc.py").read_text(encoding="utf-8")
+    assert "return a + b + 1" in content
+
+
+def test_edit_search_replace_error(scratch_repo: Path):
+    """Edit with search_replace returns deterministic error if target missing or ambiguous."""
+    registry = CoreToolRegistry(scratch_repo, edit_format=EditFormat.SEARCH_REPLACE)
+
+    # Missing target string
+    res1 = registry.execute(
+        "edit",
+        {"path": "src/calc.py", "old_str": "def multiply", "new_str": "def prod"},
+    )
+    assert res1.is_error
+    assert "Error: Target 'old_str' not found" in res1.output
+
+    # Non-unique target string
+    res2 = registry.execute(
+        "edit",
+        {"path": "src/calc.py", "old_str": "int", "new_str": "float"},
+    )
+    assert res2.is_error
+    assert "Must be unique" in res2.output
+
+
+def test_edit_line_range_normal(scratch_repo: Path):
+    """Edit with line_range replaces lines correctly."""
+    registry = CoreToolRegistry(scratch_repo, edit_format=EditFormat.LINE_RANGE)
+    res = registry.execute(
+        "edit",
+        {
+            "path": "src/calc.py",
+            "start_line": 1,
+            "end_line": 2,
+            "new_code": "def add(a: float, b: float) -> float:\n    return a + b",
+        },
+    )
+    assert not res.is_error
+    assert "Successfully replaced lines 1-2" in res.output
+    content = (scratch_repo / "src" / "calc.py").read_text(encoding="utf-8")
+    assert "def add(a: float, b: float) -> float:" in content
+    assert "def sub" in content  # untouched
+
+
+def test_edit_line_range_error(scratch_repo: Path):
+    """Edit with line_range returns deterministic error on invalid ranges."""
+    registry = CoreToolRegistry(scratch_repo, edit_format=EditFormat.LINE_RANGE)
+    res = registry.execute(
+        "edit",
+        {
+            "path": "src/calc.py",
+            "start_line": 100,
+            "end_line": 105,
+            "new_code": "foo",
+        },
+    )
+    assert res.is_error
+    assert "out of range" in res.output
+
+
+def test_switching_edit_format_single_config(scratch_repo: Path):
+    """Switching edit format is a single config value change."""
+    # Format 1: search_replace
+    reg_sr = CoreToolRegistry(scratch_repo, edit_format="search_replace")
+    assert reg_sr.edit_format == EditFormat.SEARCH_REPLACE
+
+    # Format 2: line_range
+    reg_lr = CoreToolRegistry(scratch_repo, edit_format="line_range")
+    assert reg_lr.edit_format == EditFormat.LINE_RANGE
+
+
+# ---------------------------------------------------------------------------
+# Tool: run Tests
+# ---------------------------------------------------------------------------
+
+
+def test_run_tool_normal(scratch_repo: Path):
+    """Run tool executes command and captures output."""
+    registry = CoreToolRegistry(scratch_repo)
+    cmd = f'"{sys.executable}" -c "print(\'Agent testing run tool\')"'
+    res = registry.execute("run", {"command": cmd})
+    assert not res.is_error
+    assert "Agent testing run tool" in res.output
+
+
+def test_run_tool_error(scratch_repo: Path):
+    """Run tool returns error indication and output for failing commands."""
+    registry = CoreToolRegistry(scratch_repo)
+    cmd = f'"{sys.executable}" -c "import sys; print(\'Crash!\', file=sys.stderr); sys.exit(1)"'
+    res = registry.execute("run", {"command": cmd})
+    assert res.is_error
+    assert "Crash!" in res.output
+
+
+def test_run_tool_empty_command_error(scratch_repo: Path):
+    """Run tool rejects blank command."""
+    registry = CoreToolRegistry(scratch_repo)
+    res = registry.execute("run", {"command": "   "})
+    assert res.is_error
+    assert "Error: Empty command string provided" in res.output
+
+
+# ---------------------------------------------------------------------------
+# Tool: submit Tests
+# ---------------------------------------------------------------------------
+
+
+def test_submit_tool_normal(scratch_repo: Path):
+    """Submit tool records submission message and state."""
+    registry = CoreToolRegistry(scratch_repo)
+    assert not registry.submitted
+    res = registry.execute("submit", {"message": "All unit tests pass."})
+    assert not res.is_error
+    assert registry.submitted
+    assert registry.submission_message == "All unit tests pass."
+    assert "Task submitted successfully." in res.output
+
+
+def test_submit_tool_error(scratch_repo: Path):
+    """Submit tool rejects unexpected arguments deterministically."""
+    registry = CoreToolRegistry(scratch_repo)
+    res = registry.execute("submit", {"unexpected_param": 123})
+    assert res.is_error
+    assert "Invalid arguments for tool 'submit'" in res.output
+
+
+# ---------------------------------------------------------------------------
+# Observation Byte Capping on All Tools
+# ---------------------------------------------------------------------------
+
+
+def test_observation_byte_capping(scratch_repo: Path):
+    """Every tool enforces observation byte cap when output exceeds max_observation_bytes."""
+    cap = 50  # 50 bytes cap
+    registry = CoreToolRegistry(scratch_repo, max_observation_bytes=cap)
+
+    # 1. view capped
+    res_view = registry.execute("view", {"path": "README.md"})
+    assert res_view.truncated
+    assert "[OUTPUT TRUNCATED: observation exceeded byte cap]" in res_view.output
+
+    # 2. search capped
+    res_search = registry.execute("search", {"pattern": "def", "path": "."})
+    assert res_search.truncated
+    assert "[OUTPUT TRUNCATED: observation exceeded byte cap]" in res_search.output
+
+    # 3. run capped
+    cmd = f'"{sys.executable}" -c "print(\'A\' * 200)"'
+    res_run = registry.execute("run", {"command": cmd})
+    assert res_run.truncated
+    assert "[OUTPUT TRUNCATED: observation exceeded byte cap]" in res_run.output
+
+    # 4. edit capped
+    large_new_code = "X" * 100
+    res_edit = registry.execute(
+        "edit",
+        {"path": "src/calc.py", "old_str": "return a - b", "new_str": large_new_code},
+    )
+    assert not res_edit.is_error
+    long_msg_res = registry._cap_output("Z" * 100)
+    assert long_msg_res.truncated
+
+    # 5. submit capped
+    long_msg = "Solved! " * 20
+    res_submit = registry.execute("submit", {"message": long_msg})
+    assert res_submit.truncated
+    assert "[OUTPUT TRUNCATED: observation exceeded byte cap]" in res_submit.output

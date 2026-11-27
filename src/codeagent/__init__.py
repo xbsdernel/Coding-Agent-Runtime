@@ -67,6 +67,12 @@ from codeagent.tool_parser import (
     parse_tool_call_by_mode,
     validate_tool_arguments,
 )
+from codeagent.tools import (
+    CoreToolRegistry,
+    EditFormat,
+    ToolExecutionResult,
+    get_core_tool_definitions,
+)
 from codeagent.trace import TraceReader, TraceWriter
 
 __version__ = "0.1.0"
@@ -82,8 +88,10 @@ __all__ = [
     "ClientTimeoutConfig",
     "ContainerExecResult",
     "ContainerMetrics",
+    "CoreToolRegistry",
     "DockerSandbox",
     "EDIT_FILE_TOOL",
+    "EditFormat",
     "EventKind",
     "ExperimentConfig",
     "GradingResult",
@@ -104,6 +112,7 @@ __all__ = [
     "TaskInstance",
     "TaskRecord",
     "ToolDefinition",
+    "ToolExecutionResult",
     "ToolMode",
     "TraceEvent",
     "TraceReader",
@@ -113,6 +122,7 @@ __all__ = [
     "build_task_image",
     "check_prefix_stability",
     "generate_task_images_report",
+    "get_core_tool_definitions",
     "get_cutoff_for_model",
     "grade_instance",
     "is_docker_available",
