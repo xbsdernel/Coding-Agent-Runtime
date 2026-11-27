@@ -9,6 +9,7 @@ Verifies:
 
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -17,13 +18,14 @@ import pytest
 from codeagent.tools import (
     CoreToolRegistry,
     EditFormat,
+    check_syntax,
     get_core_tool_definitions,
 )
 
 
 @pytest.fixture
 def scratch_repo(tmp_path: Path) -> Path:
-    """Create a temporary scratch repository fixture with sample files."""
+    """Create a temporary scratch repository fixture with sample files and git repo."""
     repo = tmp_path / "scratch_repo"
     repo.mkdir()
     (repo / "src").mkdir()
@@ -39,6 +41,23 @@ def scratch_repo(tmp_path: Path) -> Path:
     (repo / "src" / "utils.py").write_text(
         "def log(msg: str) -> None:\n    print(f'[LOG] {msg}')\n"
     )
+
+    # Initialize a git repo inside scratch_repo for git apply tests
+    subprocess.run(["git", "init"], cwd=str(repo), capture_output=True, check=True)
+    subprocess.run(
+        ["git", "config", "user.name", "Test User"], cwd=str(repo), capture_output=True, check=True
+    )
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"],
+        cwd=str(repo),
+        capture_output=True,
+        check=True,
+    )
+    subprocess.run(["git", "add", "."], cwd=str(repo), capture_output=True, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "Initial commit"], cwd=str(repo), capture_output=True, check=True
+    )
+
     return repo
 
 
@@ -48,9 +67,9 @@ def scratch_repo(tmp_path: Path) -> Path:
 
 
 def test_tool_definitions_include_examples():
-    """All 5 core tools must include a usage example in their description."""
+    """All core tools must include a usage example in their description."""
     defs = get_core_tool_definitions(EditFormat.SEARCH_REPLACE)
-    assert len(defs) == 5
+    assert len(defs) >= 5
     for name, tool_def in defs.items():
         assert "example" in tool_def.description.lower(), f"Tool '{name}' lacks usage example."
 
@@ -243,6 +262,18 @@ def test_edit_search_replace_error(scratch_repo: Path):
     assert res2.is_error
     assert "Must be unique" in res2.output
 
+    # Syntactically broken edit rejected and file unchanged
+    orig_content = (scratch_repo / "src" / "calc.py").read_text(encoding="utf-8")
+    res_syntax = registry.execute(
+        "edit",
+        {"path": "src/calc.py", "old_str": "return a + b", "new_str": "return a + + * def"},
+    )
+    assert res_syntax.is_error
+    assert "Syntax error at line" in res_syntax.output
+    assert "File left unchanged" in res_syntax.output
+    # Verify file was indeed unchanged
+    assert (scratch_repo / "src" / "calc.py").read_text(encoding="utf-8") == orig_content
+
 
 def test_edit_line_range_normal(scratch_repo: Path):
     """Edit with line_range replaces lines correctly."""
@@ -277,6 +308,22 @@ def test_edit_line_range_error(scratch_repo: Path):
     )
     assert res.is_error
     assert "out of range" in res.output
+
+    # Syntactically broken edit rejected and file unchanged
+    orig_content = (scratch_repo / "src" / "calc.py").read_text(encoding="utf-8")
+    res_syntax = registry.execute(
+        "edit",
+        {
+            "path": "src/calc.py",
+            "start_line": 1,
+            "end_line": 2,
+            "new_code": "def ( invalid syntax :::",
+        },
+    )
+    assert res_syntax.is_error
+    assert "Syntax error at line" in res_syntax.output
+    assert "File left unchanged" in res_syntax.output
+    assert (scratch_repo / "src" / "calc.py").read_text(encoding="utf-8") == orig_content
 
 
 def test_switching_edit_format_single_config(scratch_repo: Path):
@@ -386,3 +433,94 @@ def test_observation_byte_capping(scratch_repo: Path):
     res_submit = registry.execute("submit", {"message": long_msg})
     assert res_submit.truncated
     assert "[OUTPUT TRUNCATED: observation exceeded byte cap]" in res_submit.output
+
+
+# ---------------------------------------------------------------------------
+# Patch Tool Safety Tests (ISS-020)
+# ---------------------------------------------------------------------------
+
+
+def test_patch_normal(scratch_repo: Path):
+    """Normal patch applies cleanly."""
+    registry = CoreToolRegistry(scratch_repo)
+    patch_str = (
+        "--- a/src/calc.py\n"
+        "+++ b/src/calc.py\n"
+        "@@ -4,2 +4,2 @@\n"
+        "-def sub(a: int, b: int) -> int:\n"
+        "-    return a - b\n"
+        "+def sub(a: int, b: int) -> int:\n"
+        "+    return a - b - 1\n"
+    )
+    res = registry.execute("patch", {"patch": patch_str})
+    assert not res.is_error
+    assert "Patch applied successfully." in res.output
+    content = (scratch_repo / "src" / "calc.py").read_text(encoding="utf-8")
+    assert "return a - b - 1" in content
+
+
+def test_patch_broken_rejected_pre_apply(scratch_repo: Path):
+    """A broken patch is rejected pre-apply by git apply --check; file unchanged."""
+    registry = CoreToolRegistry(scratch_repo)
+    orig_content = (scratch_repo / "src" / "calc.py").read_text(encoding="utf-8")
+
+    # Mismatched hunk that cannot apply
+    broken_patch = (
+        "--- a/src/calc.py\n"
+        "+++ b/src/calc.py\n"
+        "@@ -1,2 +1,2 @@\n"
+        "-nonexistent line that does not match anything in calc.py\n"
+        "+new replacement line\n"
+    )
+    res = registry.execute("patch", {"patch": broken_patch})
+    assert res.is_error
+    assert "Patch rejected pre-apply" in res.output
+    assert "File left unchanged" in res.output
+    # Verify file is completely unchanged
+    assert (scratch_repo / "src" / "calc.py").read_text(encoding="utf-8") == orig_content
+
+
+def test_patch_syntactically_broken_rejected_post_apply(scratch_repo: Path):
+    """A syntactically broken edit in a patch is rejected post-apply; file is reverted."""
+    registry = CoreToolRegistry(scratch_repo)
+    orig_content = (scratch_repo / "src" / "calc.py").read_text(encoding="utf-8")
+
+    # Valid diff hunk but syntactically broken Python code
+    syntax_broken_patch = (
+        "--- a/src/calc.py\n"
+        "+++ b/src/calc.py\n"
+        "@@ -1,5 +1,5 @@\n"
+        " def add(a: int, b: int) -> int:\n"
+        "-    return a + b\n"
+        "+    return a + * broken syntax\n"
+        " \n"
+        " def sub(a: int, b: int) -> int:\n"
+        "     return a - b\n"
+    )
+    res = registry.execute("patch", {"patch": syntax_broken_patch})
+    assert res.is_error
+    assert "Patch rejected post-apply due to Syntax error at line" in res.output
+    assert "File reverted." in res.output
+    # Verify file was reverted to original content
+    assert (scratch_repo / "src" / "calc.py").read_text(encoding="utf-8") == orig_content
+
+
+def test_check_syntax_helper():
+    """check_syntax returns proper line numbers and errors."""
+    valid, err, line = check_syntax("def ok():\n    pass\n", "test.py")
+    assert valid
+    assert err is None
+    assert line is None
+
+    valid, err, line = check_syntax("def broken(\n", "test.py")
+    assert not valid
+    assert "Syntax error at line" in err
+    assert line == 1
+
+    # JSON syntax
+    valid, err, line = check_syntax('{"key": "val"}', "data.json")
+    assert valid
+
+    valid, err, line = check_syntax('{"key": val}', "data.json")
+    assert not valid
+    assert "JSON syntax error at line" in err

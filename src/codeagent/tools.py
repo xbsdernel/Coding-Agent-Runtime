@@ -13,10 +13,13 @@ messages on failure, and includes a usage example in its description.
 
 from __future__ import annotations
 
+import ast
 import fnmatch
+import json
 import os
 import re
 import shutil
+import subprocess
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
@@ -30,9 +33,37 @@ __all__ = [
     "CoreToolRegistry",
     "EditFormat",
     "ToolExecutionResult",
+    "check_syntax",
     "get_core_tool_definitions",
     "is_ripgrep_available",
 ]
+
+
+def check_syntax(code: str, filename: str = "<string>") -> tuple[bool, str | None, int | None]:
+    """Check code syntax using native parsers (e.g. Python ast, json).
+
+    Returns (is_valid, error_message, line_number).
+    """
+    ext = Path(filename).suffix.lower()
+    if ext in (".py", ".pyw"):
+        try:
+            ast.parse(code, filename=filename)
+            return True, None, None
+        except SyntaxError as e:
+            line_no = e.lineno or 1
+            msg = f"Syntax error at line {line_no}: {e.msg}"
+            return False, msg, line_no
+    elif ext in (".json",):
+        try:
+            json.loads(code)
+            return True, None, None
+        except json.JSONDecodeError as e:
+            line_no = e.lineno
+            msg = f"JSON syntax error at line {line_no}: {e.msg}"
+            return False, msg, line_no
+
+    # For other languages or non-code files, default to valid if no parser registered
+    return True, None, None
 
 
 def is_ripgrep_available() -> bool:
@@ -187,6 +218,24 @@ SUBMIT_TOOL_DEF = ToolDefinition(
 )
 
 
+PATCH_TOOL_DEF = ToolDefinition(
+    name="patch",
+    description=(
+        "Apply a unified diff patch to the repository with pre-validation via 'git apply --check'\n"
+        "and post-apply syntax validation.\n"
+        "Usage example:\n"
+        '{"patch": "--- a/x.py\\n+++ b/x.py\\n@@ -1 +1 @@\\n-print(1)\\n+print(2)\\n"}'
+    ),
+    parameters={
+        "type": "object",
+        "properties": {
+            "patch": {"type": "string", "description": "Unified diff patch string to apply."},
+        },
+        "required": ["patch"],
+    },
+)
+
+
 def get_core_tool_definitions(
     edit_format: EditFormat | str = EditFormat.SEARCH_REPLACE,
 ) -> dict[str, ToolDefinition]:
@@ -203,6 +252,7 @@ def get_core_tool_definitions(
         "edit": edit_def,
         "run": RUN_TOOL_DEF,
         "submit": SUBMIT_TOOL_DEF,
+        "patch": PATCH_TOOL_DEF,
     }
 
 
@@ -276,6 +326,8 @@ class CoreToolRegistry:
                 return self.run(**arguments)
             if tool_name == "submit":
                 return self.submit(**arguments)
+            if tool_name == "patch":
+                return self.patch(**arguments)
             return self._cap_output(f"Error: Unknown tool '{tool_name}'", is_error=True)
         except TypeError as e:
             return self._cap_output(
@@ -580,6 +632,14 @@ class CoreToolRegistry:
                 )
 
             new_content = content.replace(old_str, new_str, 1)
+            # Post-edit syntax validation
+            is_valid, syntax_err, line_no = check_syntax(new_content, filename=target.name)
+            if not is_valid:
+                return self._cap_output(
+                    f"Error: Edit rejected due to {syntax_err}. File left unchanged.",
+                    is_error=True,
+                )
+
             target.write_text(new_content, encoding="utf-8")
             return self._cap_output(f"Successfully replaced match in '{path}'")
 
@@ -605,7 +665,17 @@ class CoreToolRegistry:
 
             replacement = new_code if new_code.endswith("\n") else new_code + "\n"
             new_lines = lines[: start_line - 1] + [replacement] + lines[end_line:]
-            target.write_text("".join(new_lines), encoding="utf-8")
+            candidate_content = "".join(new_lines)
+
+            # Post-edit syntax validation
+            is_valid, syntax_err, line_no = check_syntax(candidate_content, filename=target.name)
+            if not is_valid:
+                return self._cap_output(
+                    f"Error: Edit rejected due to {syntax_err}. File left unchanged.",
+                    is_error=True,
+                )
+
+            target.write_text(candidate_content, encoding="utf-8")
             return self._cap_output(
                 f"Successfully replaced lines {start_line}-{end_line} in '{path}'"
             )
@@ -656,6 +726,91 @@ class CoreToolRegistry:
                 }
             )
         return capped
+
+    # -----------------------------------------------------------------------
+    # Tool: patch
+    # -----------------------------------------------------------------------
+
+    def patch(self, patch: str) -> ToolExecutionResult:
+        """Apply a unified diff patch with pre-check and post-check safety validations."""
+        if not patch.strip():
+            return self._cap_output("Error: Empty patch provided", is_error=True)
+
+        patch_bytes = patch.encode("utf-8")
+
+        # Step 1: Pre-apply check using git apply --check
+        check_proc = subprocess.run(  # noqa: S603
+            ["git", "apply", "--check", "-"],
+            input=patch_bytes,
+            cwd=str(self.repo_dir),
+            capture_output=True,
+        )
+
+        if check_proc.returncode != 0:
+            err_msg = check_proc.stderr.decode("utf-8", errors="replace").strip()
+            # Try to identify offending line if present in git output
+            line_match = re.search(r":(\d+):", err_msg)
+            line_info = f" at line {line_match.group(1)}" if line_match else ""
+            return self._cap_output(
+                f"Error: Patch rejected pre-apply{line_info}: {err_msg}. File left unchanged.",
+                is_error=True,
+            )
+
+        # Snapshot modified files before apply for post-check syntax validation & rollback
+        files_to_check: list[str] = re.findall(r"^\+\+\+ [b/]*(.*?)$", patch, re.MULTILINE)
+        original_snapshots: dict[Path, str] = {}
+        for f in files_to_check:
+            f_clean = f.strip().removeprefix("b/").removeprefix("/")
+            try:
+                p = self._resolve_safe_path(f_clean)
+                if p.is_file():
+                    original_snapshots[p] = p.read_text(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
+
+        # Step 2: Apply the patch
+        apply_proc = subprocess.run(  # noqa: S603
+            ["git", "apply", "-"],
+            input=patch_bytes,
+            cwd=str(self.repo_dir),
+            capture_output=True,
+        )
+
+        if apply_proc.returncode != 0:
+            err_msg = apply_proc.stderr.decode("utf-8", errors="replace").strip()
+            return self._cap_output(
+                f"Error: Patch failed during apply: {err_msg}. File left unchanged.",
+                is_error=True,
+            )
+
+        # Step 3: Post-apply syntax check on modified files
+        for p, orig_text in original_snapshots.items():
+            if p.is_file():
+                try:
+                    new_text = p.read_text(encoding="utf-8", errors="replace")
+                    is_valid, syntax_err, line_no = check_syntax(new_text, filename=p.name)
+                    if not is_valid:
+                        # Revert file immediately
+                        p.write_text(orig_text, encoding="utf-8")
+                        # Try to reverse the entire patch cleanly
+                        subprocess.run(  # noqa: S603
+                            ["git", "apply", "--reverse", "-"],
+                            input=patch_bytes,
+                            cwd=str(self.repo_dir),
+                            capture_output=True,
+                        )
+                        return self._cap_output(
+                            f"Error: Patch rejected post-apply due to {syntax_err}. File reverted.",
+                            is_error=True,
+                        )
+                except Exception as e:
+                    p.write_text(orig_text, encoding="utf-8")
+                    return self._cap_output(
+                        f"Error checking syntax after patch: {e}. File reverted.",
+                        is_error=True,
+                    )
+
+        return self._cap_output("Patch applied successfully.")
 
     # -----------------------------------------------------------------------
     # Tool: submit

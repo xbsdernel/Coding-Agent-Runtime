@@ -71,6 +71,7 @@ from codeagent.tools import (
     CoreToolRegistry,
     EditFormat,
     ToolExecutionResult,
+    check_syntax,
     get_core_tool_definitions,
     is_ripgrep_available,
 )
@@ -122,6 +123,7 @@ __all__ = [
     "apply_chat_template",
     "build_task_image",
     "check_prefix_stability",
+    "check_syntax",
     "generate_task_images_report",
     "get_core_tool_definitions",
     "get_cutoff_for_model",
