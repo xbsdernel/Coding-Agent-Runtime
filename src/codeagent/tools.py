@@ -13,8 +13,10 @@ messages on failure, and includes a usage example in its description.
 
 from __future__ import annotations
 
+import fnmatch
 import os
 import re
+import shutil
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
@@ -29,7 +31,13 @@ __all__ = [
     "EditFormat",
     "ToolExecutionResult",
     "get_core_tool_definitions",
+    "is_ripgrep_available",
 ]
+
+
+def is_ripgrep_available() -> bool:
+    """Check if the ripgrep (`rg`) executable is available in PATH."""
+    return shutil.which("rg") is not None
 
 
 class EditFormat(StrEnum):
@@ -81,8 +89,10 @@ SEARCH_TOOL_DEF = ToolDefinition(
     name="search",
     description=(
         "Search for regex patterns or text across files in a directory or single file.\n"
+        "Supports ripgrep when available, falling back to python search with ignore rules,\n"
+        "file-type filters, context lines, and output capping.\n"
         "Usage example:\n"
-        '{"pattern": "def parse_args", "path": "src"}'
+        '{"pattern": "def parse_args", "path": "src", "file_type": "py", "context_lines": 1}'
     ),
     parameters={
         "type": "object",
@@ -91,6 +101,14 @@ SEARCH_TOOL_DEF = ToolDefinition(
             "path": {
                 "type": "string",
                 "description": "Relative directory or file path to search (default: '.').",
+            },
+            "file_type": {
+                "type": "string",
+                "description": "Optional file extension or type filter (e.g., 'py', 'md', 'json').",
+            },
+            "context_lines": {
+                "type": "integer",
+                "description": "Number of context lines before and after match (default: 0).",
             },
         },
         "required": ["pattern"],
@@ -222,7 +240,9 @@ class CoreToolRegistry:
         self.submitted = False
         self.submission_message: str | None = None
 
-    def _cap_output(self, text: str, is_error: bool = False) -> ToolExecutionResult:
+    def _cap_output(
+        self, text: str, is_error: bool = False, truncation_note: str | None = None
+    ) -> ToolExecutionResult:
         """Enforce observation byte cap on output string."""
         encoded = text.encode("utf-8", errors="replace")
         truncated = False
@@ -231,7 +251,8 @@ class CoreToolRegistry:
             capped_bytes = encoded[: self.max_observation_bytes]
             # Decode cleanly ignoring split multi-byte characters at cut point
             capped_str = capped_bytes.decode("utf-8", errors="ignore")
-            text = capped_str + "\n[OUTPUT TRUNCATED: observation exceeded byte cap]"
+            note = truncation_note or "[OUTPUT TRUNCATED: observation exceeded byte cap]"
+            text = f"{capped_str}\n{note}"
 
         return ToolExecutionResult(output=text, is_error=is_error, truncated=truncated)
 
@@ -318,12 +339,61 @@ class CoreToolRegistry:
     # Tool: search
     # -----------------------------------------------------------------------
 
+    def _load_ignore_patterns(self) -> list[str]:
+        """Load ignore patterns from .gitignore and standard defaults."""
+        patterns = [
+            ".git",
+            ".git/*",
+            "*.pyc",
+            "__pycache__",
+            "__pycache__/*",
+            ".pytest_cache",
+            ".pytest_cache/*",
+            ".venv",
+            ".venv/*",
+            "*.egg-info",
+        ]
+        gitignore = self.repo_dir / ".gitignore"
+        if gitignore.is_file():
+            try:
+                for line in gitignore.read_text(encoding="utf-8", errors="replace").splitlines():
+                    line = line.strip()
+                    if line and not line.startswith("#"):
+                        patterns.append(line)
+            except Exception:
+                pass
+        return patterns
+
+    def _is_ignored(self, path: Path, ignore_patterns: list[str]) -> bool:
+        """Check if relative path matches any ignore pattern."""
+        try:
+            rel = path.relative_to(self.repo_dir).as_posix()
+        except ValueError:
+            rel = path.as_posix()
+
+        name = path.name
+        for pat in ignore_patterns:
+            pat_clean = pat.rstrip("/")
+            if fnmatch.fnmatch(name, pat_clean) or fnmatch.fnmatch(rel, pat_clean):
+                return True
+            if pat.endswith("/*") and (
+                fnmatch.fnmatch(rel, pat) or fnmatch.fnmatch(rel, pat_clean + "/*")
+            ):
+                return True
+            # Also match subdirectories
+            parts = rel.split("/")
+            if any(fnmatch.fnmatch(part, pat_clean) for part in parts):
+                return True
+        return False
+
     def search(
         self,
         pattern: str,
         path: str = ".",
+        file_type: str | None = None,
+        context_lines: int = 0,
     ) -> ToolExecutionResult:
-        """Search regex or text across workspace."""
+        """Search regex or text across workspace using ripgrep or Python fallback."""
         try:
             target = self._resolve_safe_path(path)
         except ValueError as err:
@@ -332,6 +402,67 @@ class CoreToolRegistry:
         if not target.exists():
             return self._cap_output(f"Error: Search path '{path}' does not exist", is_error=True)
 
+        # Try ripgrep if installed
+        if is_ripgrep_available():
+            res = self._search_with_ripgrep(pattern, target, file_type, context_lines)
+            if res is not None:
+                return res
+
+        # Python fallback search
+        return self._search_with_python(pattern, target, file_type, context_lines)
+
+    def _search_with_ripgrep(
+        self,
+        pattern: str,
+        target: Path,
+        file_type: str | None,
+        context_lines: int,
+    ) -> ToolExecutionResult | None:
+        """Execute search using ripgrep binary."""
+        cmd = ["rg", "--line-number", "--color", "never", "--no-heading"]
+        if context_lines > 0:
+            cmd.extend(["-C", str(context_lines)])
+        if file_type:
+            ft = file_type.lstrip(".")
+            cmd.extend(["-g", f"*.{ft}"])
+
+        cmd.extend([pattern, str(target)])
+        try:
+            res = run_with_timeout(
+                cmd,
+                cwd=str(self.repo_dir),
+                timeout_s=self.command_timeout_s,
+                max_bytes=self.max_observation_bytes,
+            )
+        except Exception:
+            return None
+
+        # ripgrep returns 0 if match found, 1 if no match, 2 if error
+        if res.returncode == 1:
+            rel = target.relative_to(self.repo_dir).as_posix() if target != self.repo_dir else "."
+            return self._cap_output(f"No matches found for pattern '{pattern}' in '{rel}'")
+
+        if res.returncode == 0:
+            out_str = res.stdout.decode("utf-8", errors="replace").strip()
+            # Normalize target paths relative to repo_dir if possible
+            return self._cap_output(
+                out_str, truncation_note="[OUTPUT TRUNCATED: results truncated at limit]"
+            )
+
+        if res.returncode != 0 and res.stderr:
+            err_text = res.stderr.decode("utf-8", errors="replace").strip()
+            return self._cap_output(f"Error: ripgrep failed: {err_text}", is_error=True)
+
+        return None
+
+    def _search_with_python(
+        self,
+        pattern: str,
+        target: Path,
+        file_type: str | None,
+        context_lines: int,
+    ) -> ToolExecutionResult:
+        """Execute search using pure Python regex and directory traversal."""
         try:
             regex = re.compile(pattern)
         except re.error as err:
@@ -339,31 +470,67 @@ class CoreToolRegistry:
                 f"Error: Invalid regular expression pattern '{pattern}': {err}", is_error=True
             )
 
-        matches: list[str] = []
+        ignore_patterns = self._load_ignore_patterns()
+        clean_ext = f".{file_type.lstrip('.')}" if file_type else None
+
         files_to_search: list[Path] = []
         if target.is_file():
-            files_to_search.append(target)
+            if not self._is_ignored(target, ignore_patterns) and (
+                clean_ext is None or target.suffix == clean_ext
+            ):
+                files_to_search.append(target)
         else:
-            for root, _, files in os.walk(target):
+            for root, dirs, files in os.walk(target):
+                # Filter directories in-place to respect ignores
+                root_path = Path(root)
+                dirs[:] = [d for d in dirs if not self._is_ignored(root_path / d, ignore_patterns)]
                 for f in files:
-                    if not f.startswith(".") and not f.endswith((".pyc", ".git")):
-                        files_to_search.append(Path(root) / f)
+                    file_p = root_path / f
+                    if self._is_ignored(file_p, ignore_patterns):
+                        continue
+                    if clean_ext and file_p.suffix != clean_ext:
+                        continue
+                    files_to_search.append(file_p)
 
+        matches: list[str] = []
         for file_path in files_to_search:
             try:
-                content = file_path.read_text(encoding="utf-8", errors="replace")
+                lines = file_path.read_text(encoding="utf-8", errors="replace").splitlines()
             except Exception:
                 continue
 
-            rel_file = file_path.relative_to(self.repo_dir)
-            for line_no, line in enumerate(content.splitlines(), start=1):
-                if regex.search(line):
-                    matches.append(f"{rel_file}:{line_no}: {line}")
+            rel_file = file_path.relative_to(self.repo_dir).as_posix()
+            total = len(lines)
+            matched_indices = [idx for idx, line in enumerate(lines) if regex.search(line)]
 
+            if not matched_indices:
+                continue
+
+            if context_lines <= 0:
+                for idx in matched_indices:
+                    matches.append(f"{rel_file}:{idx + 1}: {lines[idx]}")
+            else:
+                # Group matches with context lines
+                emitted_indices: set[int] = set()
+                for idx in matched_indices:
+                    start_ctx = max(0, idx - context_lines)
+                    end_ctx = min(total, idx + context_lines + 1)
+                    for c_idx in range(start_ctx, end_ctx):
+                        if c_idx not in emitted_indices:
+                            sep = ":" if c_idx == idx else "-"
+                            matches.append(f"{rel_file}{sep}{c_idx + 1}{sep} {lines[c_idx]}")
+                            emitted_indices.add(c_idx)
+
+        rel_target = (
+            target.relative_to(self.repo_dir).as_posix() if target != self.repo_dir else "."
+        )
         if not matches:
-            return self._cap_output(f"No matches found for pattern '{pattern}' in '{path}'")
+            return self._cap_output(f"No matches found for pattern '{pattern}' in '{rel_target}'")
 
-        return self._cap_output("\n".join(matches))
+        return self._cap_output(
+            "\n".join(matches),
+            truncation_note="[OUTPUT TRUNCATED: results truncated at limit]",
+        )
 
     # -----------------------------------------------------------------------
     # Tool: edit

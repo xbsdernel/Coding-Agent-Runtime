@@ -72,6 +72,7 @@ from codeagent.tools import (
     EditFormat,
     ToolExecutionResult,
     get_core_tool_definitions,
+    is_ripgrep_available,
 )
 from codeagent.trace import TraceReader, TraceWriter
 
@@ -126,6 +127,7 @@ __all__ = [
     "get_cutoff_for_model",
     "grade_instance",
     "is_docker_available",
+    "is_ripgrep_available",
     "parse_guided_decoding",
     "parse_native_tool_call",
     "parse_plaintext_action",
